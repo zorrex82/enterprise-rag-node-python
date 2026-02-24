@@ -28,6 +28,36 @@ app.get("/v1/rag/health", async (_req, res) => {
     });
 });
 
+// Proxy ingest endpoint to rag-service
+app.post("/v1/ingest", async (req, res) => {
+    const upstreamUrl = new URL(req.originalUrl, ragServiceBaseUrl).toString();
+  
+    const response = await fetch(upstreamUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(req.body),
+    });
+  
+    const data = await response.json();
+    res.status(response.status).json(data);
+  });
+  
+
+// Proxy chat endpoint to rag-service
+app.post("/v1/chat", async (req, res) => {
+    const upstreamUrl = new URL(req.originalUrl, ragServiceBaseUrl).toString();
+
+    const response = await fetch(upstreamUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(req.body),
+    });
+
+    const data = await response.json();
+    res.status(response.status).json(data);
+});
+
+
 // Start HTTP server
 app.listen(PORT, () => {
     console.log(`api-gateway running on port ${PORT}`);
