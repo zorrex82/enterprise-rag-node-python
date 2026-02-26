@@ -51,3 +51,9 @@ logs/
 .pids/
 *.zip
 how_to_start_services.txt
+
+# Database
+rag-service/data/
+*.db
+*.db-wal
+*.db-shm
