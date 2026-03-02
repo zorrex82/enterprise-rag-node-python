@@ -5,7 +5,8 @@ A lightweight Retrieval-Augmented Generation (RAG) system built from scratch usi
 * FastAPI for the RAG service
 * Node.js (Express) as an API gateway
 * Ollama for local embeddings and LLM inference
-* In-memory vector store (planned migration to SQLite)
+* SQLite for persistence
+* In-memory vector store for fast cosine retrieval
 
 This project is designed as a local-first, educational and experimental RAG implementation. It focuses on understanding the full pipeline instead of relying on external managed vector databases or cloud services.
 
@@ -26,14 +27,16 @@ The system is composed of three main components:
 * Handles ingestion
 * Performs chunking
 * Generates embeddings using Ollama
-* Stores embeddings in memory
+* Persists chunks and embeddings in SQLite
+* Loads data into memory on startup
 * Executes cosine similarity retrieval
-* Returns ranked matches and context
+* Generates grounded answers using an LLM
+* Returns ranked matches, context, and final answer
 
 ### 3. Ollama (Local LLM Runtime)
 
-* Generates embeddings (e.g., nomic-embed-text)
-* Will be used for answer generation (LLM step)
+* Generates embeddings (e.g., `nomic-embed-text`)
+* Generates answers using a chat model (e.g., `llama3.1`)
 
 ---
 
@@ -42,10 +45,12 @@ The system is composed of three main components:
 * Text ingestion endpoint
 * Character-based chunking
 * Embedding generation via Ollama
-* In-memory vector storage
-* Cosine similarity retrieval
+* SQLite persistence layer
+* Automatic reload of stored chunks on service startup
+* In-memory cosine similarity retrieval
+* Grounded answer generation in `/v1/chat`
 * Gateway proxy with query param forwarding
-* Local development script (dev.sh) to manage services
+* Local development script (`dev.sh`) to manage services
 
 ---
 
@@ -55,9 +60,9 @@ The system is composed of three main components:
 * [x] Embeddings integration
 * [x] Cosine similarity retrieval
 * [x] API Gateway integration
-* [ ] LLM answer generation in /v1/chat
-* [ ] SQLite persistence layer
-* [ ] Document-level filtering (doc_id)
+* [x] LLM answer generation in `/v1/chat`
+* [x] SQLite persistence layer
+* [ ] Document-level filtering (`doc_id`)
 * [ ] Basic evaluation / smoke tests
 * [ ] Docker support
 
@@ -69,6 +74,25 @@ The system is composed of three main components:
 * Node.js 20+
 * Ollama installed locally
 * Git
+
+---
+
+## Environment Variables
+
+Optional environment variables:
+
+* `OLLAMA_BASE_URL` (default: `http://localhost:11434`)
+* `EMBEDDING_MODEL` (default: `nomic-embed-text`)
+* `CHAT_MODEL` (default: `llama3.1`)
+* `SQLITE_DB_PATH` (optional override for database location)
+
+Example:
+
+```bash
+export OLLAMA_BASE_URL="http://localhost:11434"
+export EMBEDDING_MODEL="nomic-embed-text"
+export CHAT_MODEL="llama3.1"
+```
 
 ---
 
@@ -84,8 +108,6 @@ python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
 ```
-
-This will create a local virtual environment and install all required Python dependencies.
 
 ### 2. Setup the API Gateway (Node.js)
 
@@ -123,13 +145,24 @@ Stop services:
 ./dev.sh stop
 ```
 
+Restart services:
+
+```bash
+./dev.sh restart
+```
+
 ---
 
-## Important Notes
+## Persistence Model
 
-* The `dev.sh` script expects the Python virtual environment to exist at `rag-service/venv`.
-* If the RAG service fails to start, ensure the virtual environment is properly created and dependencies are installed.
-* Ollama must be installed and accessible in your system PATH.
+* Chunks and embeddings are stored in SQLite (`rag-service/data/rag.db` by default).
+* On startup, the RAG service:
+
+  * Initializes the database (if needed)
+  * Loads all stored chunks into memory
+* Cosine similarity search is performed in memory for simplicity and clarity.
+
+This approach keeps the architecture understandable while still providing durability across restarts.
 
 ---
 
@@ -155,13 +188,13 @@ curl -X POST "http://localhost:3000/v1/chat?top_k=2" \
   }'
 ```
 
-The response currently includes:
+The response includes:
 
+* `answer` (LLM-generated, grounded in context)
 * Ranked matches
 * Similarity scores
 * Aggregated context
-
-LLM-based answer generation will be added in the next milestone.
+* Model used for generation
 
 ---
 
@@ -178,12 +211,30 @@ The goal is to:
 * Understand embeddings and retrieval mechanics
 * Control the full pipeline
 * Keep everything runnable locally
-* Provide a foundation for evolving toward persistent storage and production-ready patterns
+* Provide a clean foundation for evolving toward production-ready patterns
+
+---
+
+## Data Files
+
+The SQLite database is local-only and ignored by Git:
+
+```
+rag-service/data/
+*.db
+*.db-wal
+*.db-shm
+```
 
 ---
 
 ## Future Direction
 
-The next major evolution will replace the in-memory store with SQLite while keeping vector search logic explicit and understandable.
+The next major evolution will introduce:
+
+* Document-level filtering via `doc_id`
+* Structured document ingestion
+* Evaluation utilities
+* Docker support
 
 This repository serves as a reference implementation and experimentation ground before building a more structured version intended for teaching purposes.
