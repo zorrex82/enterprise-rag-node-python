@@ -55,7 +55,7 @@ def chat(request: ChatRequest, top_k: int = Query(default=5, ge=1, le=20)) -> di
         if chunk_text:
             context_parts.append(f"[{chunk_id}] {chunk_text}")
 
-    # avoid call llm without context
+    # avoid calling the LLM without context
     if not context_parts:
         return {
             "question": question,
@@ -70,8 +70,17 @@ def chat(request: ChatRequest, top_k: int = Query(default=5, ge=1, le=20)) -> di
 
     # Protection against large context
     max_context_chars = 4000
-    if len(context) > max_context_chars:
-        context = context[:max_context_chars]
+    context_acc = []
+    current_len = 0
+
+    for part in context_parts:
+        # +2 for the "\n\n" separator
+        extra = len(part) + (2 if context_acc else 0)
+        if current_len + extra > max_context_chars:
+            break
+        context_acc.append(part)
+        current_len += extra
+    context = "\n\n".join(context_acc)
 
     # 4 - Generate a grounded answer using Ollama chat model
     answer = generate_answer(
