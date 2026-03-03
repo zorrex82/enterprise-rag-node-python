@@ -22,6 +22,7 @@ def on_startup() -> None:
         STORE[item["chunk_id"]] = {
             "text": item["text"],
             "embedding": item["embedding"],
+            "doc_id": item.get("doc_id", "default"),
         }
 
     print(f"Loaded {len(items)} chunks from SQLite into in-memory STORE.")
@@ -33,4 +34,3 @@ def health() -> dict:
         "service": "rag-service",
         "store_size": len(STORE),
     }
-

@@ -11,15 +11,17 @@ from app.core.sqlite_db import init_db, upsert_chunk
 
 router = APIRouter()
 
+
 class IngestRequest(BaseModel):
     text: str
+    doc_id: str | None = None
+
 
 @router.post("/v1/ingest")
-def ingest(
-    request: IngestRequest,
-    verbose: bool = Query(default=False)
-) -> dict:
+def ingest(request: IngestRequest, verbose: bool = Query(default=False)) -> dict:
     init_db()
+
+    doc_id = (request.doc_id or "default").strip() or "default"
 
     chunks = chunk_text(request.text)
     chunk_ids = [c["id"] for c in chunks]
@@ -35,13 +37,14 @@ def ingest(
         chunk_text_value = c["text"]
 
         vec = embed_text(chunk_text_value, base_url=ollama_base_url, model=embedding_model)
-        
-        # In-memory store (current behavior)
-        STORE[chunk_id] = {"text": chunk_text_value, "embedding": vec}
 
-        # SQLite persistence (new behavior)
+        # In-memory store (still used for cosine retrieval)
+        STORE[chunk_id] = {"text": chunk_text_value, "embedding": vec, "doc_id": doc_id}
+
+        # SQLite persistence
         upsert_chunk(
             chunk_id=chunk_id,
+            doc_id=doc_id,
             text=chunk_text_value,
             embedding=vec,
             created_at_utc=created_at_utc,
@@ -52,6 +55,7 @@ def ingest(
 
     response = {
         "status": "accepted",
+        "doc_id": doc_id,
         "chunks_created": len(chunks),
         "chunk_ids": chunk_ids,
         "embedding_dim": embedding_dim,
@@ -62,6 +66,7 @@ def ingest(
         response["chunks_preview"] = [
             {
                 "id": cid,
+                "doc_id": STORE[cid].get("doc_id"),
                 "text_preview": STORE[cid]["text"][:80],
                 "embedding_preview": STORE[cid]["embedding"][:5],
             }

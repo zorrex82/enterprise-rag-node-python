@@ -19,7 +19,11 @@ class ChatRequest(BaseModel):
 
 
 @router.post("/v1/chat")
-def chat(request: ChatRequest, top_k: int = Query(default=5, ge=1, le=20)) -> dict:
+def chat(
+    request: ChatRequest,
+    top_k: int = Query(default=5, ge=1, le=20),
+    doc_id: str | None = Query(default=None),
+) -> dict:
     ollama_base_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
     embedding_model = os.getenv("EMBEDDING_MODEL", "nomic-embed-text")
     chat_model = os.getenv("CHAT_MODEL", "llama3.1")
@@ -32,16 +36,22 @@ def chat(request: ChatRequest, top_k: int = Query(default=5, ge=1, le=20)) -> di
         base_url=ollama_base_url,
         model=embedding_model,
     )
+    effective_doc_id = (doc_id or "default").strip() or "default"
 
+    filtered_store = {
+        chunk_id: chunk
+        for chunk_id, chunk in STORE.items()
+        if chunk.get("doc_id", "default") == effective_doc_id
+    }
     # 2 - Retrieve top-k similar chunks from the store
-    ranked = top_k_similar(STORE, query_embedding, k=top_k)
+    ranked = top_k_similar(filtered_store, query_embedding, k=top_k)
 
     # 3 - Build matches + context
     matches = []
     context_parts = []
 
     for chunk_id, score in ranked:
-        chunk = STORE.get(chunk_id)
+        chunk = filtered_store.get(chunk_id)
         chunk_text = chunk.get("text") if chunk else None
 
         matches.append(
@@ -64,6 +74,7 @@ def chat(request: ChatRequest, top_k: int = Query(default=5, ge=1, le=20)) -> di
             "matches": matches,
             "match_count": len(matches),
             "context": "",
+            "doc_id": effective_doc_id,
         }
 
     context = "\n\n".join(context_parts)
@@ -97,4 +108,5 @@ def chat(request: ChatRequest, top_k: int = Query(default=5, ge=1, le=20)) -> di
         "matches": matches,
         "match_count": len(matches),
         "context": context,
+        "doc_id": effective_doc_id,
     }
