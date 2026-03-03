@@ -62,8 +62,8 @@ The system is composed of three main components:
 * [x] API Gateway integration
 * [x] LLM answer generation in `/v1/chat`
 * [x] SQLite persistence layer
-* [ ] Document-level filtering (`doc_id`)
-* [ ] Basic evaluation / smoke tests
+* [x] Document-level filtering (`doc_id`)
+* [x] Basic smoke test (pytest)
 * [ ] Docker support
 
 ---
@@ -152,6 +152,32 @@ Restart services:
 ```
 
 ---
+## Running Tests
+
+Development dependencies:
+
+```bash
+cd rag-service
+source venv/bin/activate
+pip install -r requirements-dev.txt
+```
+
+Run tests:
+
+```bash
+pytest -v
+```
+The smoke test validates:
+
+* Service health
+
+* Ingestion with doc_id
+
+* Retrieval filtered by doc_id
+
+* Grounded LLM answer generation
+
+
 
 ## Persistence Model
 
@@ -174,14 +200,15 @@ This approach keeps the architecture understandable while still providing durabi
 curl -X POST http://localhost:3000/v1/ingest \
   -H "Content-Type: application/json" \
   -d '{
-    "text": "FastAPI is a modern Python web framework. Python is widely used."
+    "doc_id": "doc_fastapi",
+    "text": "FastAPI is a modern Python web framework for building APIs."
   }'
 ```
 
-### Query
+### Query (with doc_id filtering)
 
 ```bash
-curl -X POST "http://localhost:3000/v1/chat?top_k=2" \
+curl -X POST "http://localhost:3000/v1/chat?top_k=2&doc_id=doc_fastapi" \
   -H "Content-Type: application/json" \
   -d '{
     "question": "What is FastAPI?"
@@ -230,10 +257,10 @@ rag-service/data/
 
 ## Future Direction
 
-The next major evolution will introduce:
+Planned improvements:
 
-* Document-level filtering via `doc_id`
-* Structured document ingestion
+* SQL-level filtering by `doc_id` (reduce in-memory filtering)
+* Structured document ingestion (multiple chunks per document metadata)
 * Evaluation utilities
 * Docker support
 
